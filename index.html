@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#1c1a17" />
+    <title>Gesture Guitar</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500&family=Yellowtail&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="stage">
+      <video id="webcam" autoplay playsinline muted></video>
+      <canvas id="overlay"></canvas>
+
+      <header id="amp" class="tolex">
+        <div class="faceplate">
+          <div class="plate-group plate-input">
+            <span class="plate-eyebrow">Gesture Amplifier</span>
+            <span id="inputJack" class="jack" aria-hidden="true"></span>
+            <span class="plate-label">Input</span>
+          </div>
+
+          <label class="knob-unit">
+            <span class="knob-scale" id="keyScale" aria-hidden="true"><span class="knob" id="keyKnob"><span class="knob-cap"></span></span></span>
+            <span class="plate-label">Key <b id="keyValue">A</b></span>
+            <select id="keySelect" aria-label="Tom"></select>
+          </label>
+
+          <label class="knob-unit">
+            <span class="knob-scale" id="toneScale" aria-hidden="true"><span class="knob" id="toneKnob"><span class="knob-cap"></span></span></span>
+            <span class="plate-label">Tone <b id="toneValue">NYL</b></span>
+            <select id="toneSelect" aria-label="Timbre"></select>
+          </label>
+
+          <div class="plate-group plate-switches">
+            <button id="letRingToggle" class="toggle" aria-pressed="false" aria-label="Let ring: as cordas soam por mais tempo"><span></span></button>
+            <span class="plate-label">Let ring</span>
+          </div>
+
+          <div class="plate-group plate-switches">
+            <button id="palmMuteToggle" class="toggle" aria-pressed="false" aria-label="Palm mute: todas as batidas saem abafadas (segure Espaço)"><span></span></button>
+            <span class="plate-label">P.M.</span>
+          </div>
+
+          <div class="plate-group plate-switches" role="group" aria-label="Meio tom">
+            <div class="switch-row">
+              <button id="lowerToggle" class="toggle" aria-pressed="false" aria-label="Abaixar meio tom"><span></span></button>
+              <button id="raiseToggle" class="toggle" aria-pressed="false" aria-label="Subir meio tom"><span></span></button>
+            </div>
+            <span class="plate-label switch-legend"><i>♭</i> <span class="legend-text">Meio tom</span> <i>♯</i></span>
+          </div>
+
+          <div class="plate-group plate-power">
+            <span class="plate-label">Power</span>
+            <span id="led" class="led" aria-hidden="true"></span>
+            <span class="plate-model">GG-1</span>
+          </div>
+
+          <div class="plate-group plate-buttons">
+            <button id="musicButton" class="plate-button" aria-haspopup="dialog" aria-label="Música"><span class="button-led" aria-hidden="true"></span><span class="music-text">Música</span><span class="music-icon" aria-hidden="true">♫</span></button>
+            <button id="guideToggle" class="plate-button" aria-expanded="false">Guia</button>
+            <button id="helpButton" class="plate-button round" aria-label="Como tocar">?</button>
+          </div>
+        </div>
+      </header>
+
+      <div id="chordBadge" aria-live="polite">
+        <div id="chordDisplay">—</div>
+        <div id="romanDisplay">mostre a mão esquerda</div>
+      </div>
+
+      <aside id="guide" class="hidden">
+        <section class="guide-card tolex left" aria-label="Mão esquerda">
+          <h2 class="guide-title">Mão esquerda</h2>
+          <ol id="degreeRows" class="guide-rows"></ol>
+          <div class="guide-chips">
+            <span id="tiltMajor" class="free-only">↗ Maior</span>
+            <span id="tiltMinor" class="free-only">↖ Menor</span>
+            <span id="fistChip">✊ Abafa</span>
+          </div>
+        </section>
+        <section class="guide-card tolex right" aria-label="Mão direita">
+          <h2 class="guide-title">Mão direita</h2>
+          <p class="free-only">A ponta do indicador é a palheta. <b>Onde</b> você palheta muda o acorde: perto da boca toca normal e, indo pro rastilho, vira 7, maj7 e inversão. <b>Depois dos pinos</b>, em cima do cavalete, sai <b>palm mute</b>: nota curta e abafada, pra levada pesada.</p>
+          <p class="music-only manual-only">A ponta do indicador é a palheta. No modo música não tem zonas: sai sempre o acorde do gesto. <b>Depois dos pinos</b>, em cima do cavalete, sai <b>palm mute</b>.</p>
+          <p class="auto-only">A batida é automática, então a mão direita descansa. Segure <b>Espaço</b> ou ligue a chave <b>P.M.</b> pra abafar.</p>
+          <p class="manual-only"><b>↓</b> do grave pro agudo · <b>↑</b> do agudo pro grave<br /><b>⚡</b> mais rápido, mais forte</p>
+          <div class="guide-chips">
+            <span id="pmChip">✋ P.M. no cavalete</span>
+          </div>
+        </section>
+      </aside>
+
+      <section id="tutorial" class="tolex hidden" aria-labelledby="tutorialTitle">
+        <div class="tutorial-plate">
+          <span class="plate-label">Primeira aula</span>
+          <span id="tutorialLeds" class="tutorial-leds" role="img"></span>
+          <button id="tutorialExit" class="plate-button round" aria-label="Sair da aula">✕</button>
+        </div>
+        <div id="tutorialBody" class="tutorial-body">
+          <div class="tutorial-head">
+            <div class="tutorial-goal">
+              <p id="tutorialCue" class="tutorial-cue"></p>
+              <h2 id="tutorialTitle" class="tutorial-title"></h2>
+            </div>
+            <div class="tutorial-hands">
+              <div id="tutorialLeft" class="tutorial-hand"><span class="gesture" aria-hidden="true"></span><small>Esquerda</small></div>
+              <div id="tutorialRight" class="tutorial-hand"><span class="gesture" aria-hidden="true"></span><small>Direita</small></div>
+            </div>
+          </div>
+          <p id="tutorialText" class="tutorial-text"></p>
+          <p id="tutorialKeys" class="tutorial-keys"></p>
+          <p class="tutorial-status" aria-live="polite">
+            <span id="tutorialLed" class="led" aria-hidden="true"></span><span id="tutorialStatus"></span>
+          </p>
+        </div>
+      </section>
+
+      <div id="helpModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+        <div class="help-card tolex">
+          <div class="help-plate">
+            <h2 id="helpTitle">Como tocar</h2>
+            <button id="closeHelp" class="plate-button round" aria-label="Fechar">✕</button>
+          </div>
+          <div class="help-body">
+            <div class="help-lesson">
+              <p>Aprenda o básico tocando: 5 passos, um minuto.</p>
+              <button id="lessonButton" class="rocker compact">
+                <span class="rocker-led"></span>
+                <span class="rocker-text">Primeira aula</span>
+              </button>
+            </div>
+            <h3>Mão esquerda: o acorde</h3>
+            <p>
+              Dedos levantados escolhem o grau: 1 → I, 2 → II, 3 → III, 4 → IV, 5 → V, indicador + mindinho → VI,
+              indicador + mindinho + polegar → VII. Inclinada pra dentro fica maior, pra fora fica menor.
+              A escala mostra onde os dedos iriam num violão de verdade.
+            </p>
+            <h3>Mão direita: a palhetada</h3>
+            <p>
+              Passe a ponta do indicador pelas cordas. Quanto mais rápido, mais forte. O corpo do violão tem 4 zonas
+              marcadas: em cima da boca toca o acorde normal e, indo em direção ao rastilho (o osso branco onde as cordas
+              terminam), vira 7 (°7 no menor), maj7 (m7 no menor) e primeira inversão. A zona vale pela batida inteira,
+              então não tem problema escorregar a mão no meio.
+            </p>
+            <h3>Palm mute</h3>
+            <p>
+              Palhete depois dos pinos, em cima do cavalete: é como apoiar a base da mão nas cordas. A nota continua lá,
+              só que curta, grave e seca, o tchug do rock. Enquanto você bate ali o P.M. segura, mesmo se a mão escorregar
+              um pouco; volte pra madeira antes do cavalete e a próxima batida já sai aberta. No cavalete o acorde é
+              sempre o normal. Quer P.M. com 7, maj7 ou inversão, ou a música inteira abafada? Ligue a chave P.M. no
+              amplificador ou segure Espaço: toda batida sai abafada e as zonas continuam mudando o acorde.
+            </p>
+            <h3>Modo música</h3>
+            <p>
+              No botão Música você escolhe um acorde pra cada gesto da mão esquerda (1 a 5 dedos, 🤘 e 🤟), de qualquer
+              tom: C no 1, D no 2, C#m no 3, o que a música pedir. A mão direita só palheta: as zonas somem, sai sempre o
+              acorde do gesto e o palm mute continua depois dos pinos. Os acordes ficam salvos neste navegador.
+            </p>
+            <h3>Batida automática</h3>
+            <p>
+              Ligue a chave Auto no menu da música, escolha o BPM e a levada: o violão bate sozinho no tempo e você só
+              troca os acordes com a mão esquerda. Tire a mão ou feche o punho pra parar. Espaço e a chave P.M.
+              abafam a batida.
+            </p>
+            <h3>Truques</h3>
+            <p>
+              Punho fechado abafa tudo: sobra só o estalo, sem nota. Sem a mão esquerda, você toca as cordas soltas.
+              A chave Let ring deixa as cordas soarem bem mais e não corta as notas quando você troca de acorde; feche o
+              punho pra parar. As chaves de meio tom deixam você subir ou abaixar o acorde levando a mão esquerda pro alto
+              ou pra baixo da tela.
+            </p>
+            <h3>Sem câmera?</h3>
+            <p>
+              Teclas 1–7 escolhem o grau (Shift deixa menor, 0 solta). Arraste o mouse ou o dedo pelas cordas; depois dos
+              pinos sai palm mute. Segure Espaço pra abafar qualquer zona. No modo música, as teclas 1–7 tocam os acordes
+              da música, e com a batida automática nem precisa arrastar.
+            </p>
+            <p class="credit">
+              Inspirado no
+              <a href="https://gesture-synth-weld.vercel.app/" target="_blank" rel="noopener noreferrer">Gesture Synth</a>
+              de
+              <a href="https://www.instagram.com/indecisive.eric/" target="_blank" rel="noopener noreferrer">@indecisive.eric</a>.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div id="musicModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="musicTitle">
+        <div class="help-card music-card tolex">
+          <div class="help-plate">
+            <h2 id="musicTitle">Modo música</h2>
+            <button id="closeMusic" class="plate-button round" aria-label="Fechar">✕</button>
+          </div>
+          <div class="music-body">
+            <p class="music-intro">
+              Um acorde pra cada gesto da mão esquerda, de qualquer tom. A mão direita só palheta, com P.M. no
+              cavalete, ou descansa se a batida for automática.
+            </p>
+            <h3 id="slotTitle">Gestos</h3>
+            <div id="slotPicker" class="slot-grid" role="radiogroup" aria-labelledby="slotTitle"></div>
+            <h3 id="rootTitle">Nota</h3>
+            <div id="rootPicker" class="chip-grid roots" role="radiogroup" aria-labelledby="rootTitle"></div>
+            <h3 id="typeTitle">Tipo</h3>
+            <div id="typePicker" class="chip-grid types" role="radiogroup" aria-labelledby="typeTitle"></div>
+            <h3 id="autoTitle">Batida automática</h3>
+            <div class="auto-plate" role="group" aria-labelledby="autoTitle">
+              <div class="plate-group">
+                <button id="autoToggle" class="toggle" aria-pressed="false" aria-label="Auto: o violão bate sozinho"><span></span></button>
+                <span class="plate-label">Auto</span>
+              </div>
+              <div class="plate-group bpm-group">
+                <div class="bpm-row">
+                  <input id="bpmRange" class="bpm-range" type="range" step="1" aria-label="BPM" />
+                  <input id="bpmNumber" class="bpm-number" type="number" step="1" inputmode="numeric" aria-label="BPM" />
+                </div>
+                <span class="plate-label">BPM</span>
+              </div>
+              <div class="plate-group">
+                <div id="patternPicker" class="pattern-row" role="radiogroup" aria-label="Levada"></div>
+                <span class="plate-label">Levada</span>
+              </div>
+            </div>
+          </div>
+          <div class="music-footer">
+            <button id="musicOff" class="plate-button" hidden>Desligar</button>
+            <button id="musicOn" class="rocker compact">
+              <span class="rocker-led"></span>
+              <span class="rocker-text">Tocar</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="startOverlay" class="tolex">
+        <div class="cab-piping grille">
+          <div class="start-card">
+            <h1 class="script-logo">Gesture Guitar</h1>
+            <p class="start-tagline">Violão no ar · Amplificado pela webcam</p>
+            <div class="start-actions">
+              <button id="learnButton" class="rocker">
+                <span class="rocker-led"></span>
+                <span class="rocker-text">Aprender a tocar</span>
+              </button>
+              <button id="startButton" class="rocker dark">
+                <span class="rocker-led"></span>
+                <span class="rocker-text">Ligar</span>
+              </button>
+            </div>
+            <p id="startNote" class="start-note">A câmera fica só no seu navegador. Nada é gravado.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
