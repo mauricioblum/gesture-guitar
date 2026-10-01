@@ -1,10 +1,10 @@
 import './style.css'
 import { FilesetResolver, HandLandmarker, type NormalizedLandmark } from '@mediapipe/tasks-vision'
 import { GuitarEngine, PM_CHOKE_T60, TONES, type Pluck, type ToneId } from './audio/engine'
-import { PATTERNS, SPREAD, strokeOrder } from './autostrum'
+import { SPREAD, strokeOrder } from './autostrum'
 import { ChordStabilizer, GESTURES, isFist, readChord, type Variation } from './gestures'
-import { drawPick, renderGuitar, tortoisePattern, type GuitarGeometry } from './guitar-art'
-import { loadSong, musicPanel } from './music'
+import { drawPick, renderGuitar, tortoisePattern, type GuitarGeometry, type GuitarKind } from './guitar-art'
+import { loadSong, musicPanel, ROW, slotLabel, songSteps } from './music'
 import { layoutStrings, StrumDetector, type Point, type StringLayout } from './strum'
 import { tutorial, tutorialSeen } from './tutorial'
 import {
@@ -132,6 +132,7 @@ keySelect.addEventListener('change', () => {
 toneSelect.addEventListener('change', () => {
   engine.setTone(toneSelect.value as ToneId)
   syncTone()
+  resize()
 })
 for (const select of [keySelect, toneSelect]) {
   select.addEventListener(
@@ -240,9 +241,11 @@ const lesson = tutorial({ changed: applyMode, key: () => key })
 /** The lesson teaches the free mode, so a saved song waits until it ends. */
 const musicOn = () => song.on && !lesson.active
 const autoOn = () => musicOn() && song.auto
-/** Music mode only reads which gesture is up, so tilt and height can't restart the chord. */
-const gestureOnly = (c: Chord | null): Chord | null => c && { ...c, major: true, shift: 'off' }
+/** Music mode only reads which gesture is up (and the tilt, with a second row), so height can't restart the chord. */
+const gestureOnly = (c: Chord | null): Chord | null => c && { ...c, major: !song.tilted || c.major, shift: 'off' }
 const slotOf = (d: Degree) => DEGREES.indexOf(d)
+/** Tilted (the free mode's minor) picks the second row. */
+const songSlot = (c: Chord) => slotOf(c.degree) + (c.major ? 0 : ROW)
 
 function ring(string: number, velocity: number, muted: boolean, palm: boolean) {
   const v = vibration[string]
@@ -256,6 +259,18 @@ engine.onStroke = (e) => {
   for (const s of e.strings) ring(s, e.velocity, false, e.palmMute)
   lastHitAt = performance.now()
   if (e.palmMute) pmFlashAt = lastHitAt
+}
+
+/** Showing the strumming hand is read through tracking flicker, so it takes a moment to let go. */
+const HOLD_RELEASE_MS = 300
+let rightSeenAt = -Infinity
+let heldChord: SongChord | null = null
+
+function strumHeld(v: Voicing) {
+  const notes = strokeOrder(notesOf(v), 'down')
+  engine.pluck(notes.map((n, k) => ({ ...n, velocity: 0.7, delay: k * SPREAD.down })))
+  for (const n of notes) ring(n.string, 0.7, false, false)
+  lastHitAt = performance.now()
 }
 
 const panel = musicPanel(song, {
@@ -353,6 +368,7 @@ let W = 0
 let H = 0
 let layout: StringLayout
 let art: { canvas: HTMLCanvasElement; geo: GuitarGeometry }
+const guitarKind = (): GuitarKind => (TONES[toneSelect.value as ToneId].body ? 'acoustic' : 'electric')
 
 /** Palm-mute lane past the bridge pins; `exit` < `enter` is the hysteresis band while chugging. */
 interface PmBounds {
@@ -383,26 +399,35 @@ function resize() {
   canvas.height = Math.round(H * dpr)
   g.setTransform(dpr, 0, 0, dpr, 0, 0)
   layout = layoutStrings(W, H)
-  art = renderGuitar(layout, W, H, dpr)
+  art = renderGuitar(layout, W, H, dpr, guitarKind())
   pm = pmBounds()
 }
 window.addEventListener('resize', resize)
 resize()
 
-/** object-fit: cover crop of the camera frame, in video pixels. */
-function coverCrop() {
+/**
+ * Where the camera frame lands on screen. Full-screen cover while it keeps most of the frame's width;
+ * on narrow screens that would crop the hands out, so the whole frame is shown in a window at the bottom.
+ */
+function camView() {
   const vw = video.videoWidth
   const vh = video.videoHeight
-  const scale = Math.max(W / vw, H / vh)
-  const sw = W / scale
-  const sh = H / scale
-  return { vw, vh, sx: (vw - sw) / 2, sy: (vh - sh) / 2, sw, sh }
+  const cover = Math.max(W / vw, H / vh)
+  if (W / cover / vw >= 0.8) {
+    const sw = W / cover
+    const sh = H / cover
+    return { vw, vh, sx: (vw - sw) / 2, sy: (vh - sh) / 2, sw, sh, dx: 0, dy: 0, dw: W, dh: H }
+  }
+  const s = Math.min(W / vw, H / vh)
+  const dw = vw * s
+  const dh = vh * s
+  return { vw, vh, sx: 0, sy: 0, sw: vw, sh: vh, dx: (W - dw) / 2, dy: H - dh, dw, dh }
 }
 
-function toScreen(p: NormalizedLandmark, c: ReturnType<typeof coverCrop>): Point {
+function toScreen(p: NormalizedLandmark, c: ReturnType<typeof camView>): Point {
   return {
-    x: W - ((p.x * c.vw - c.sx) / c.sw) * W,
-    y: ((p.y * c.vh - c.sy) / c.sh) * H,
+    x: c.dx + c.dw - ((p.x * c.vw - c.sx) / c.sw) * c.dw,
+    y: c.dy + ((p.y * c.vh - c.sy) / c.sh) * c.dh,
   }
 }
 
@@ -412,7 +437,7 @@ function detect(now: number) {
   if (!landmarker || video.readyState < 2 || video.currentTime === lastVideoTime) return
   lastVideoTime = video.currentTime
   const res = landmarker.detectForVideo(video, now)
-  const crop = coverCrop()
+  const crop = camView()
   hands = res.landmarks.map((raw) => ({ raw, screen: raw.map((p) => toScreen(p, crop)) }))
 }
 
@@ -454,8 +479,10 @@ interface PmUi {
   forced: boolean
 }
 
+/** Portrait bodies are too short for the soundhole to take half, so the four zones split it evenly. */
 function zoneEdges() {
-  const start = art.geo.soundhole.x + art.geo.soundhole.r * 0.9
+  const start =
+    H > W ? layout.x0 + (layout.x1 - layout.x0) / 4 : art.geo.soundhole.x + art.geo.soundhole.r * 0.9
   const w = (layout.x1 - start) / 3
   return [start, start + w, start + 2 * w]
 }
@@ -478,7 +505,7 @@ function frame(now: number) {
   const read = left ? readChord(left.raw, DEFAULT_VARIATION, lesson.active ? NO_SHIFT : shiftAllow) : null
   const live = music ? gestureOnly(read) : read
   const base = stabilizer.update(left ? live : music ? gestureOnly(keyboardChord) : keyboardChord, now)
-  const slot = base ? slotOf(base.degree) : null
+  const slot = base ? (music ? songSlot(base) : slotOf(base.degree)) : null
   const songChord = music && slot !== null ? song.slots[slot] : null
   const mode: Mode = (music ? songChord : base) ? 'chord' : left && isFist(left.raw) ? 'muted' : 'open'
 
@@ -543,12 +570,20 @@ function frame(now: number) {
     lastHitAt = now
   }
 
+  if (right) rightSeenAt = now
+  const holding = auto && song.hold && now - rightSeenAt < HOLD_RELEASE_MS && !panel.isOpen
+  if (!holding || mode !== 'chord') heldChord = null
+  else if (songChord !== heldChord) {
+    heldChord = songChord
+    strumHeld(voicing)
+  }
+
   engine.setAuto(
     auto
       ? {
-          notes: mode === 'chord' && !panel.isOpen ? notesOf(voicing) : null,
+          notes: mode === 'chord' && !panel.isOpen && !holding ? notesOf(voicing) : null,
           bpm: song.bpm,
-          steps: PATTERNS[song.pattern].steps,
+          steps: songSteps(song),
           palmMute: pmSwitch || pmPedal,
         }
       : null,
@@ -584,14 +619,18 @@ function render(
 ) {
   g.clearRect(0, 0, W, H)
   if (video.videoWidth) {
-    const c = coverCrop()
+    const c = camView()
     g.save()
     g.translate(W, 0)
     g.scale(-1, 1)
-    g.drawImage(video, c.sx, c.sy, c.sw, c.sh, 0, 0, W, H)
+    g.drawImage(video, c.sx, c.sy, c.sw, c.sh, W - c.dx - c.dw, c.dy, c.dw, c.dh)
     g.restore()
+    if (c.dh < H) {
+      g.fillStyle = 'rgba(239,228,200,0.18)'
+      g.fillRect(c.dx, c.dy, c.dw, 1)
+    }
   }
-  g.fillStyle = 'rgba(16, 10, 6, 0.58)'
+  g.fillStyle = 'rgba(16, 10, 6, 0.42)'
   g.fillRect(0, 0, W, H)
 
   g.save()
@@ -775,13 +814,14 @@ function drawFingering(voicing: Voicing, mode: Mode) {
 function drawStrings(now: number, voicing: Voicing) {
   const { nut, x1, ys } = layout
   const len = x1 - nut
+  const electric = guitarKind() === 'electric'
   g.save()
   g.lineCap = 'round'
   ys.forEach((y, i) => {
     const v = vibration[i]
     v.amp *= v.decay
     const phase = now * 0.06 * (1 + (5 - i) * 0.18)
-    const wound = i < 4
+    const wound = i < (electric ? 3 : 4)
     const muted = voicing[i] === null
     const thick = 3.2 - i * 0.42
     g.strokeStyle = 'rgba(0,0,0,0.35)'
@@ -791,7 +831,7 @@ function drawStrings(now: number, voicing: Voicing) {
     g.lineTo(x1, y + 3)
     g.stroke()
 
-    const idle = muted ? 'rgba(150,130,100,0.55)' : wound ? '#c99a5c' : '#d8d8d4'
+    const idle = muted ? 'rgba(150,130,100,0.55)' : wound ? (electric ? '#b4b2ac' : '#c99a5c') : '#d8d8d4'
     g.strokeStyle = idle
     g.lineWidth = thick * 0.9
     g.beginPath()
@@ -800,7 +840,7 @@ function drawStrings(now: number, voicing: Voicing) {
     g.stroke()
 
     const ringing = v.amp > 0.4
-    g.strokeStyle = muted ? idle : !ringing ? idle : wound ? '#f2cf8e' : '#fbfaf5'
+    g.strokeStyle = muted ? idle : !ringing ? idle : wound ? (electric ? '#ecebe6' : '#f2cf8e') : '#fbfaf5'
     g.lineWidth = thick
     g.beginPath()
     for (let s = 0; s <= 56; s++) {
@@ -849,8 +889,8 @@ function updateHud(
   const roman =
     music && slot !== null
       ? songChord
-        ? `música · ${slot + 1}${tempo && ` · ${tempo}`}${tag}`
-        : `${slot + 1} · sem acorde`
+        ? `música · ${slotLabel(slot)}${tempo && ` · ${tempo}`}${tag}`
+        : `${slotLabel(slot)} · sem acorde`
       : chord
         ? `${romanName(chord)}${chord.high ? ' · alto' : ''}${tag}`
         : mode === 'muted'
@@ -871,11 +911,12 @@ function updateHud(
   if (guide.classList.contains('hidden')) return
   const rows = degreeRows.children as HTMLCollectionOf<HTMLElement>
   if (music) {
-    const shownSlot = live ? slotOf(live.degree) : slot
+    const shownSlot = live ? songSlot(live) : slot
+    const offset = shownSlot !== null && shownSlot >= ROW ? ROW : 0
     for (let i = 0; i < rows.length; i++) {
-      const c = song.slots[i]
-      rows[i].classList.toggle('active', i === shownSlot)
-      rows[i].querySelector('.roman')!.textContent = ''
+      const c = song.slots[offset + i]
+      rows[i].classList.toggle('active', offset + i === shownSlot)
+      rows[i].querySelector('.roman')!.textContent = offset ? '↖' : ''
       rows[i].querySelector('.chord')!.textContent = c ? songChordName(c) : '—'
     }
   } else {
@@ -891,6 +932,8 @@ function updateHud(
     $('tiltMajor').classList.toggle('active', !!shown && shown.major)
     $('tiltMinor').classList.toggle('active', !!shown && !shown.major)
   }
+  $('tiltRow').hidden = !song.tilted
+  $('tiltRow').classList.toggle('active', music && (live ? songSlot(live) : (slot ?? 0)) >= ROW)
   $('fistChip').classList.toggle('active', mode === 'muted')
   pmChip.classList.toggle('active', pmOn)
 }

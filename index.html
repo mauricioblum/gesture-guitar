@@ -81,6 +81,7 @@
           <div class="guide-chips">
             <span id="tiltMajor" class="free-only">↗ Maior</span>
             <span id="tiltMinor" class="free-only">↖ Menor</span>
+            <span id="tiltRow" class="music-only">↖ Fileira inclinada</span>
             <span id="fistChip">✊ Abafa</span>
           </div>
         </section>
@@ -204,10 +205,13 @@
             </p>
             <h3 id="slotTitle">Gestos</h3>
             <div id="slotPicker" class="slot-grid" role="radiogroup" aria-labelledby="slotTitle"></div>
+            <button id="rowToggle" class="plate-button row-toggle" aria-pressed="false"></button>
             <h3 id="rootTitle">Nota</h3>
             <div id="rootPicker" class="chip-grid roots" role="radiogroup" aria-labelledby="rootTitle"></div>
             <h3 id="typeTitle">Tipo</h3>
             <div id="typePicker" class="chip-grid types" role="radiogroup" aria-labelledby="typeTitle"></div>
+            <h3 id="bassTitle">Baixo</h3>
+            <div id="bassPicker" class="chip-grid roots" role="radiogroup" aria-labelledby="bassTitle"></div>
             <h3 id="autoTitle">Batida automática</h3>
             <div class="auto-plate" role="group" aria-labelledby="autoTitle">
               <div class="plate-group">
@@ -224,6 +228,18 @@
               <div class="plate-group">
                 <div id="patternPicker" class="pattern-row" role="radiogroup" aria-label="Levada"></div>
                 <span class="plate-label">Levada</span>
+              </div>
+              <div class="hold-row">
+                <button id="holdToggle" class="toggle" aria-pressed="false" aria-label="Segurar nota: a mão direita para a levada e deixa o acorde soando"><span></span></button>
+                <span class="plate-label">Segurar nota</span>
+                <span class="hold-hint">Mostre a mão direita: a levada para e o acorde soa uma vez. Bom pra pausas e finais.</span>
+              </div>
+            </div>
+            <div id="customEditor" class="custom-editor" hidden>
+              <div id="customGrid" class="custom-grid" role="group" aria-label="Levada custom, em semicolcheias"></div>
+              <div class="custom-foot">
+                <p class="custom-hint">Toque pra alternar ↓ ↑ e pausa. No teclado: ↓ ↑ marcam, Delete apaga.</p>
+                <button id="customClear" type="button" class="plate-button">Limpar</button>
               </div>
             </div>
           </div>

@@ -28,8 +28,8 @@ export interface StrumHit {
 export function layoutStrings(w: number, h: number): StringLayout {
   const portrait = h > w
   const nut = w * (portrait ? 0.04 : 0.26)
-  const x0 = w * (portrait ? 0.4 : 0.56)
-  const x1 = w * (portrait ? 0.9 : 0.86)
+  const x0 = w * (portrait ? 0.34 : 0.56)
+  const x1 = w * (portrait ? 0.87 : 0.86)
   const span = portrait ? Math.min(h * 0.15, w * 0.42) : Math.min(h * 0.18, 150)
   const mid = h * (portrait ? 0.77 : 0.76)
   const spacing = span / 5

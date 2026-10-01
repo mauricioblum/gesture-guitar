@@ -185,20 +185,25 @@ export type ChordTypeId = keyof typeof CHORD_TYPES
 export interface SongChord {
   root: number
   type: ChordTypeId
+  /** slash chord bass (G/B → 11); absent when the root is the bass */
+  bass?: number
 }
 
-export const songChordName = (c: SongChord) => NOTE_NAMES[c.root] + CHORD_TYPES[c.type].symbol
+export const songChordName = (c: SongChord) =>
+  NOTE_NAMES[c.root] + CHORD_TYPES[c.type].symbol + (c.bass === undefined ? '' : `/${NOTE_NAMES[c.bass]}`)
 
 export function songVoicing(c: SongChord): Voicing {
-  const id = `song-${c.root}-${c.type}`
+  const id = `song-${c.root}-${c.type}-${c.bass ?? c.root}`
   const cached = voicingCache.get(id)
   if (cached) return cached
   const t: ChordType = CHORD_TYPES[c.type]
   const pc = (i: number) => (c.root + i) % 12
+  const tones = t.tones.map(pc)
+  const slash = c.bass !== undefined && c.bass !== c.root
   const v = searchVoicing({
-    tones: t.tones.map(pc),
-    bass: c.root,
-    required: t.required.map(pc),
+    tones: slash && !tones.includes(c.bass!) ? [...tones, c.bass!] : tones,
+    bass: c.bass ?? c.root,
+    required: slash ? [...t.required.map(pc), c.root] : t.required.map(pc),
     high: false,
     avoidDouble: t.avoidDouble === undefined ? undefined : pc(t.avoidDouble),
     strings: t.strings,

@@ -1,4 +1,4 @@
-// One bar of eighth notes: D down, U up, . rest.
+// One 4/4 bar: D down, U up, . rest. 8 steps are eighth notes, 16 are sixteenths.
 export const PATTERNS = {
   basic: { name: 'Básica', steps: 'D.D.D.D.' },
   pop: { name: 'Pop', steps: 'D.DU.UDU' },
@@ -6,6 +6,10 @@ export const PATTERNS = {
   rock: { name: 'Rock', steps: 'DDDDDDDD' },
 }
 export type PatternId = keyof typeof PATTERNS
+
+/** The custom pattern is one bar of sixteenths. */
+export const CUSTOM_STEPS = 16
+export const isSteps = (s: unknown): s is string => typeof s === 'string' && new RegExp(`^[DU.]{${CUSTOM_STEPS}}$`).test(s)
 
 export const arrows = (steps: string) =>
   steps.replace(/D/g, '↓').replace(/U/g, '↑').replace(/\./g, ' ').trim()
@@ -29,13 +33,13 @@ const LATE = 0.05
 // update() runs on every audio block, so the usual "nothing due" answer doesn't allocate.
 const NONE: AutoStroke[] = []
 
-function velocity(step: number, dir: StrokeDir) {
-  const base = dir === 'up' ? 0.42 : step % 2 === 0 ? 0.64 : 0.54
+function velocity(step: number, dir: StrokeDir, perBeat: number) {
+  const base = dir === 'up' ? 0.42 : step % perBeat === 0 ? 0.64 : 0.54
   return base + (step === 0 ? 0.1 : 0) + (Math.random() - 0.5) * 0.08
 }
 
 /**
- * Eighth-note strum grid on the audio clock. Rests shorter than a bar keep the groove;
+ * Strum grid on the audio clock. Rests shorter than a bar keep the groove;
  * after a longer one the next chord starts the pattern from the top.
  */
 export class AutoStrummer {
@@ -49,8 +53,9 @@ export class AutoStrummer {
 
   /** Strokes landing before `until`. */
   update(now: number, until: number, bpm: number, steps: string, playing: boolean): AutoStroke[] {
-    const dur = 30 / bpm
-    const bar = dur * steps.length
+    const bar = 240 / bpm
+    const dur = bar / steps.length
+    const perBeat = steps.length / 4
     if (playing) this.lastPlaying = now
     let next = this.next
     if (next === null || now - this.lastPlaying > bar || now - next > bar) {
@@ -67,7 +72,7 @@ export class AutoStrummer {
       const s = steps[this.step]
       if (playing && s !== '.' && next > now - LATE) {
         const dir = s === 'U' ? 'up' : 'down'
-        out.push({ at: Math.max(now, next), dir, velocity: velocity(this.step, dir) })
+        out.push({ at: Math.max(now, next), dir, velocity: velocity(this.step, dir, perBeat) })
       }
       this.step = (this.step + 1) % steps.length
     }
