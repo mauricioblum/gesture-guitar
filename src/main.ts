@@ -563,8 +563,8 @@ function frame(now: number) {
   const pmUi: PmUi = { live: pmLive, lit, armed, forced }
 
   lesson.update(chord, base, hits.length && mode !== 'muted' ? stroke.size : 0)
-  const aim = lesson.target
-  render(now, voicing, left, right, pick, mode, base?.major ?? true, pmUi, aim ? ZONE_QUALITIES.indexOf(aim.quality) : -1)
+  const aim = lesson.aim
+  render(now, voicing, left, right, pick, mode, base?.major ?? true, pmUi, aim === null ? -1 : ZONE_QUALITIES.indexOf(aim))
   updateHud(chord, slot, mode, live, DEFAULT_VARIATION, !!left || !!right, now, lit)
   requestAnimationFrame(frame)
 }

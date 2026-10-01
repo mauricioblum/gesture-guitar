@@ -7,7 +7,7 @@ const STRUM = 3
 const NEXT_MS = 1600
 const END_MS = 4500
 
-export interface Target {
+interface Target {
   degree: Degree
   major: boolean
   quality: Quality
@@ -52,7 +52,7 @@ const STEPS: Step[] = [
     cue: 'Toque',
     left: GESTURES[3],
     right: PICK,
-    text: 'Agora levante <b>4 dedos</b>: é o quarto acorde do tom.',
+    text: 'Agora levante <b>4&nbsp;dedos</b>: é o quarto acorde do tom.',
     keys: 'Sem câmera: aperte 4 e arraste.',
     done: 'Trocou de acorde!',
   },
@@ -61,7 +61,7 @@ const STEPS: Step[] = [
     cue: 'Toque',
     left: `${GESTURES[3]}↖`,
     right: PICK,
-    text: 'Mantenha os 4 dedos e incline a mão <b>pra fora</b>: o acorde fica menor.',
+    text: 'Mantenha os 4&nbsp;dedos e incline a mão <b>pra fora</b>: o&nbsp;acorde fica menor.',
     keys: 'Sem câmera: Shift + 4 e arraste.',
     done: 'Menor soa mais triste, né?',
   },
@@ -70,7 +70,7 @@ const STEPS: Step[] = [
     cue: 'Toque',
     left: GESTURES[0],
     right: `${PICK}<b class="zone-tag">7</b>`,
-    text: 'Volte pro 1 dedo e palhete <b>em cima do 7</b>: o lugar onde você palheta também muda o acorde.',
+    text: 'Volte pro 1&nbsp;dedo e palhete <b>em cima do&nbsp;7</b>: o lugar onde você palheta também muda o&nbsp;acorde.',
     keys: 'Sem câmera: aperte 1 e arraste em cima do 7.',
     done: 'A sétima dá um tempero de blues.',
   },
@@ -235,9 +235,9 @@ export function tutorial(hooks: TutorialHooks) {
     get active() {
       return active
     },
-    /** what the canvas should point the player at */
-    get target() {
-      return active && !passed ? STEPS[step].target : null
+    /** zone quality the canvas points the player at; open strings are taught over the soundhole */
+    get aim(): Quality | null {
+      return active && !passed ? (STEPS[step].target?.quality ?? 1) : null
     },
   }
 }
